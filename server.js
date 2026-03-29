@@ -36,69 +36,19 @@ app.get('/', (_req, res) => {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AutoFacts</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 40px;
-      background: #f6f6f6;
-      color: #111;
-    }
-    h1 {
-      margin-bottom: 20px;
-    }
-    .row {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-bottom: 20px;
-    }
-    input, select, button {
-      font-size: 16px;
-      padding: 10px 12px;
-    }
-    input {
-      min-width: 280px;
-    }
-    button {
-      cursor: pointer;
-    }
-    .card {
-      background: white;
-      border: 1px solid #ddd;
-      border-radius: 10px;
-      padding: 16px;
-      max-width: 900px;
-    }
-    .answer {
-      font-size: 28px;
-      font-weight: bold;
-      margin-bottom: 12px;
-    }
-    .summary {
-      line-height: 1.5;
-      margin-bottom: 12px;
-    }
-    .chips {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-bottom: 12px;
-    }
-    .chip {
-      background: #eef3ff;
-      border: 1px solid #c9d8ff;
-      border-radius: 999px;
-      padding: 6px 10px;
-      font-size: 14px;
-    }
-    .source {
-      font-size: 14px;
-      color: #555;
-    }
-    .error {
-      color: #b00020;
-      margin-top: 10px;
-      white-space: pre-wrap;
-    }
+    body { font-family: Arial, sans-serif; margin: 40px; background: #f6f6f6; color: #111; }
+    h1 { margin-bottom: 20px; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+    input, select, button { font-size: 16px; padding: 10px 12px; }
+    input { min-width: 280px; }
+    button { cursor: pointer; }
+    .card { background: white; border: 1px solid #ddd; border-radius: 10px; padding: 16px; max-width: 900px; }
+    .answer { font-size: 28px; font-weight: bold; margin-bottom: 12px; }
+    .summary { line-height: 1.5; margin-bottom: 12px; }
+    .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+    .chip { background: #eef3ff; border: 1px solid #c9d8ff; border-radius: 999px; padding: 6px 10px; font-size: 14px; }
+    .source { font-size: 14px; color: #555; }
+    .error { color: #b00020; margin-top: 10px; white-space: pre-wrap; }
   </style>
 </head>
 <body>
@@ -161,7 +111,7 @@ app.get('/', (_req, res) => {
         const data = await res.json();
 
         if (!res.ok) {
-          throw new Error(data.error || 'Error desconocido.');
+          throw new Error(data.error + (data.detail ? '\n\n' + JSON.stringify(data.detail, null, 2) : ''));
         }
 
         titleEl.textContent = query + ' · ' + relation;
@@ -214,9 +164,7 @@ app.post('/api/lookup', async (req, res) => {
     const wiki = await fetchWikipediaContext(query);
 
     if (!wiki.contextText) {
-      return res.status(404).json({
-        error: 'No encontré contexto suficiente en Wikipedia para esa búsqueda.'
-      });
+      return res.status(404).json({ error: 'No encontré contexto suficiente en Wikipedia para esa búsqueda.' });
     }
 
     const prompt = `
@@ -232,7 +180,8 @@ Reglas:
 - No inventes datos.
 - Si el contexto no alcanza, decilo explícitamente.
 - La respuesta debe ser breve y clara.
-- Devolvé JSON con esta forma exacta:
+- Devolvé SOLO JSON válido.
+- Formato exacto:
 {
   "answer": "respuesta principal corta",
   "summary": "resumen corto en 2 o 3 líneas",
@@ -273,17 +222,11 @@ Reglas:
     const json = await response.json();
 
     if (!response.ok) {
-      return res.status(500).json({
-        error: 'Error de Gemini',
-        detail: json
-      });
+      return res.status(500).json({ error: 'Error de Gemini', detail: json });
     }
 
     if (!json.candidates || !json.candidates.length) {
-      return res.status(500).json({
-        error: 'Gemini no devolvió candidatos.',
-        detail: json
-      });
+      return res.status(500).json({ error: 'Gemini no devolvió candidatos.', detail: json });
     }
 
     const text = json.candidates[0]?.content?.parts?.[0]?.text || '{}';
@@ -305,17 +248,13 @@ Reglas:
       highlights: Array.isArray(parsed.highlights) ? parsed.highlights : [],
       source: wiki.sourceUrl
     });
-
   } catch (e) {
-    return res.status(500).json({
-      error: 'Error general',
-      detail: e.message
-    });
+    return res.status(500).json({ error: 'Error general', detail: e.message });
   }
 });
 
 async function fetchWikipediaContext(query) {
-  const searchUrl = \`https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=\${encodeURIComponent(query)}&utf8=1&format=json&origin=*\`;
+  const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&utf8=1&format=json&origin=*`;
   const searchResponse = await fetch(searchUrl);
 
   if (!searchResponse.ok) {
@@ -330,7 +269,7 @@ async function fetchWikipediaContext(query) {
   }
 
   const title = first.title;
-  const summaryUrl = \`https://en.wikipedia.org/api/rest_v1/page/summary/\${encodeURIComponent(title)}\`;
+  const summaryUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
   const summaryResponse = await fetch(summaryUrl);
 
   if (!summaryResponse.ok) {
@@ -340,7 +279,7 @@ async function fetchWikipediaContext(query) {
   const summaryJson = await summaryResponse.json();
 
   return {
-    contextText: \`Título: \${title}\nDescripción: \${summaryJson.description || ''}\nResumen: \${summaryJson.extract || ''}\`,
+    contextText: `Título: ${title}\nDescripción: ${summaryJson.description || ''}\nResumen: ${summaryJson.extract || ''}`,
     sourceUrl: summaryJson.content_urls?.desktop?.page || ''
   };
 }
