@@ -8,19 +8,19 @@ app.use(express.json());
 const RELATIONS = {
   platform: {
     label: 'comparte plataforma con',
-    instruction: 'Identifica con qué marca o grupo comparte plataforma.'
+    instruction: 'Indica la plataforma del vehículo y con qué marcas o modelos la comparte. Priorizá el nombre concreto de la plataforma si existe.'
   },
   based_on: {
     label: 'está basado en',
-    instruction: 'Explica en qué plataforma o arquitectura se basa.'
+    instruction: 'Indica la plataforma o arquitectura técnica específica del vehículo. Priorizá nombres concretos de plataforma o arquitectura. No respondas con relaciones indirectas, históricas o vagas si no contestan la pregunta.'
   },
   engine: {
     label: 'motor',
-    instruction: 'Resume el motor principal o familia de motores.'
+    instruction: 'Resume el motor o familia de motores más representativa del vehículo consultado. Si hay varias motorizaciones importantes, mencioná las principales de forma breve y concreta.'
   },
   highlights: {
     label: 'highlights',
-    instruction: 'Devuelve highlights técnicos simples.'
+    instruction: 'Devuelve highlights técnicos concretos y breves: plataforma o chasis, layout o tracción, motor y rasgo distintivo de diseño o generación.'
   }
 };
 
@@ -33,92 +33,350 @@ app.get('/', (_req, res) => {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AutoFacts</title>
   <style>
+    :root {
+      --bg: #0a0d12;
+      --bg-2: #0f141c;
+      --card: rgba(19, 24, 33, 0.92);
+      --line: rgba(255, 255, 255, 0.08);
+      --text: #edf2f7;
+      --muted: #99a4b3;
+      --accent: #9fc3ff;
+      --accent-2: #5e8fff;
+      --chip-bg: rgba(159, 195, 255, 0.10);
+      --chip-line: rgba(159, 195, 255, 0.22);
+      --shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+      --radius: 20px;
+    }
+
+    * { box-sizing: border-box; }
+
     body {
-      font-family: Arial, sans-serif;
-      margin: 40px;
-      background: #f6f6f6;
-      color: #111;
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(94, 143, 255, 0.18), transparent 26%),
+        radial-gradient(circle at top right, rgba(255, 255, 255, 0.05), transparent 20%),
+        linear-gradient(180deg, #090c11 0%, #0c1017 40%, #0a0d12 100%);
+      padding: 20px 14px 36px;
     }
-    h1 {
-      margin-bottom: 20px;
+
+    .shell {
+      width: 100%;
+      max-width: 920px;
+      margin: 0 auto;
     }
-    .row {
+
+    .brand {
       display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-bottom: 20px;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 18px;
     }
-    input, select, button {
-      font-size: 16px;
-      padding: 10px 12px;
+
+    .brand-mark {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(180deg, rgba(255,255,255,0.16), rgba(255,255,255,0.05));
+      border: 1px solid rgba(255,255,255,0.10);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.10);
+      font-size: 18px;
     }
-    input {
-      min-width: 260px;
+
+    .brand h1 {
+      margin: 0;
+      font-size: clamp(34px, 7vw, 56px);
+      line-height: 0.95;
+      letter-spacing: -0.04em;
+      font-weight: 800;
     }
-    button {
+
+    .brand p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .panel {
+      background: linear-gradient(180deg, rgba(18,23,31,0.96), rgba(14,19,27,0.96));
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: 14px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+      margin-bottom: 16px;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .field label {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.10em;
+      padding-left: 2px;
+    }
+
+    .input,
+    .select,
+    .button {
+      width: 100%;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      min-height: 58px;
+      font-size: 18px;
+    }
+
+    .input,
+    .select {
+      background: rgba(255,255,255,0.03);
+      color: var(--text);
+      padding: 0 18px;
+      outline: none;
+      transition: border-color 0.18s ease, transform 0.18s ease, background 0.18s ease;
+    }
+
+    .input::placeholder {
+      color: #7e8896;
+    }
+
+    .input:focus,
+    .select:focus {
+      border-color: rgba(159, 195, 255, 0.42);
+      background: rgba(255,255,255,0.045);
+      transform: translateY(-1px);
+    }
+
+    .button {
+      border: none;
+      color: #06111f;
+      font-weight: 800;
+      letter-spacing: 0.01em;
+      background: linear-gradient(180deg, #d9e7ff 0%, #8fb7ff 48%, #6b9cff 100%);
+      box-shadow: 0 10px 24px rgba(94, 143, 255, 0.28);
       cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: transform 0.18s ease, filter 0.18s ease, opacity 0.18s ease;
     }
-    .card {
-      background: white;
-      border: 1px solid #ddd;
-      border-radius: 10px;
-      padding: 16px;
-      max-width: 900px;
+
+    .button:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.02);
     }
+
+    .button:disabled {
+      cursor: wait;
+      opacity: 0.92;
+    }
+
+    .ring {
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      border: 2px solid rgba(6, 17, 31, 0.22);
+      border-top-color: rgba(6, 17, 31, 0.88);
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+
+    .button.loading .ring {
+      display: inline-block;
+    }
+
+    .button.loading .button-text::after {
+      content: '...';
+    }
+
+    .result {
+      background: linear-gradient(180deg, rgba(16,21,29,0.98), rgba(12,17,24,0.98));
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      padding: 18px 16px 20px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .result::before {
+      content: '';
+      position: absolute;
+      inset: 0 0 auto 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(159,195,255,0.85), transparent);
+      opacity: 0.9;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      margin-bottom: 14px;
+    }
+
+    .eyebrow-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: #7db0ff;
+      box-shadow: 0 0 16px rgba(125,176,255,0.8);
+    }
+
     .answer {
-      font-size: 24px;
-      font-weight: bold;
-      margin-bottom: 12px;
+      font-size: clamp(27px, 7vw, 38px);
+      line-height: 1.04;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      margin: 0 0 14px;
+      text-wrap: balance;
     }
+
     .summary {
-      line-height: 1.5;
-      margin-bottom: 12px;
+      color: #d5dce6;
+      font-size: clamp(17px, 3.8vw, 20px);
+      line-height: 1.62;
+      margin-bottom: 16px;
     }
+
     .chips {
       display: flex;
-      gap: 8px;
       flex-wrap: wrap;
-      margin-bottom: 12px;
+      gap: 10px;
+      margin-bottom: 14px;
     }
+
     .chip {
-      background: #eef3ff;
-      border: 1px solid #c9d8ff;
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      background: var(--chip-bg);
+      border: 1px solid var(--chip-line);
+      color: #e9f0ff;
       border-radius: 999px;
-      padding: 6px 10px;
+      padding: 10px 14px;
       font-size: 14px;
+      line-height: 1.2;
     }
+
+    .chip::before {
+      content: '◦';
+      color: #9fc3ff;
+      font-size: 16px;
+      line-height: 1;
+    }
+
     .source {
+      color: var(--muted);
       font-size: 14px;
-      color: #555;
-      margin-top: 10px;
+      line-height: 1.5;
     }
+
+    .source a {
+      color: var(--accent);
+    }
+
     .error {
-      color: #b00020;
-      margin-top: 10px;
+      color: #ff9d9d;
+      font-size: 14px;
+      margin-top: 12px;
       white-space: pre-wrap;
+      line-height: 1.5;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @media (min-width: 760px) {
+      body {
+        padding: 34px 22px 50px;
+      }
+
+      .panel {
+        padding: 16px;
+      }
+
+      .controls {
+        grid-template-columns: 1.35fr 1fr auto;
+        align-items: end;
+      }
+
+      .button {
+        min-width: 200px;
+        padding: 0 22px;
+      }
+
+      .result {
+        padding: 24px 24px 24px;
+      }
     }
   </style>
 </head>
 <body>
-  <h1>AutoFacts</h1>
+  <div class="shell">
+    <div class="brand">
+      <div class="brand-mark">✦</div>
+      <div>
+        <h1>AutoFacts</h1>
+        <p>Relaciones técnicas entre autos, con foco en plataforma, arquitectura y motorización.</p>
+      </div>
+    </div>
 
-  <div class="row">
-    <input id="q" placeholder="Ej: Audi A3, Jeep Renegade, Skyline R34" />
-    <select id="r">
-      <option value="platform">comparte plataforma con</option>
-      <option value="based_on">está basado en</option>
-      <option value="engine">motor</option>
-      <option value="highlights">highlights</option>
-    </select>
-    <button id="btn" type="button">Consultar</button>
-  </div>
+    <section class="panel">
+      <div class="controls">
+        <div class="field">
+          <label for="q">Modelo o marca</label>
+          <input id="q" class="input" placeholder="Ej: Audi A3, Jeep Renegade, Nissan Skyline R34" />
+        </div>
 
-  <div class="card">
-    <div id="answer" class="answer">Todavía no hay consulta.</div>
-    <div id="summary" class="summary">Probá con una marca o modelo.</div>
-    <div id="chips" class="chips"></div>
-    <div id="source" class="source"></div>
-    <div id="error" class="error"></div>
+        <div class="field">
+          <label for="r">Consulta</label>
+          <select id="r" class="select">
+            <option value="platform">comparte plataforma con</option>
+            <option value="based_on">está basado en</option>
+            <option value="engine">motor</option>
+            <option value="highlights">highlights</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>&nbsp;</label>
+          <button id="btn" type="button" class="button">
+            <span class="ring" aria-hidden="true"></span>
+            <span class="button-text">Consultar</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <section class="result">
+      <div class="eyebrow"><span class="eyebrow-dot"></span><span>Consulta automotriz</span></div>
+      <div id="answer" class="answer">Listo para consultar</div>
+      <div id="summary" class="summary">Elegí un modelo, hacé una pregunta y te devuelvo una respuesta breve con highlights.</div>
+      <div id="chips" class="chips"></div>
+      <div id="source" class="source"></div>
+      <div id="error" class="error"></div>
+    </section>
   </div>
 
   <script>
@@ -145,9 +403,9 @@ app.get('/', (_req, res) => {
       }
 
       btn.disabled = true;
-      btn.textContent = 'Consultando...';
-      answerEl.textContent = 'Buscando...';
-      summaryEl.textContent = '';
+      btn.classList.add('loading');
+      answerEl.textContent = 'Consultando…';
+      summaryEl.textContent = 'Buscando contexto y armando respuesta…';
 
       try {
         const res = await fetch('/api/lookup', {
@@ -174,18 +432,15 @@ app.get('/', (_req, res) => {
         });
 
         if (data.source) {
-          sourceEl.innerHTML =
-            'Fuente: <a href="' + data.source + '" target="_blank" rel="noopener noreferrer">' +
-            data.source +
-            '</a>';
+          sourceEl.innerHTML = 'Fuente: <a href="' + data.source + '" target="_blank" rel="noopener noreferrer">' + data.source + '</a>';
         }
       } catch (err) {
         answerEl.textContent = 'No se pudo resolver';
-        summaryEl.textContent = '';
+        summaryEl.textContent = 'La consulta falló antes de devolver una respuesta válida.';
         errorEl.textContent = err.message;
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Consultar';
+        btn.classList.remove('loading');
       }
     }
 
@@ -199,6 +454,7 @@ app.get('/', (_req, res) => {
 </body>
 </html>
   `;
+
   res.send(html);
 });
 
@@ -226,17 +482,28 @@ app.post('/api/lookup', async (req, res) => {
     }
 
     const prompt =
+      'Sos un asistente experto en autos. Respondés en español claro, corto y preciso.\n' +
+      'Tenés que responder únicamente con información respaldada por el contexto provisto.\n' +
+      'Si no hay dato suficiente, lo decís explícitamente sin rellenar.\n' +
+      'Priorizá nombres concretos de plataformas, arquitecturas, layouts y familias de motores cuando existan.\n' +
+      'Evitá respuestas vagas, históricas o indirectas si no contestan exactamente lo preguntado.\n\n' +
       'Consulta: ' + query + '\n' +
       'Tipo: ' + RELATIONS[relation].label + '\n' +
-      'Instrucción: ' + RELATIONS[relation].instruction + '\n\n' +
+      'Instrucción específica: ' + RELATIONS[relation].instruction + '\n\n' +
       'Contexto:\n' + wikiText + '\n\n' +
-      'Respondé SOLO en JSON válido con esta forma exacta:\n' +
+      'Reglas de salida:\n' +
+      '- Respondé SOLO en JSON válido.\n' +
+      '- answer: una frase corta y concreta.\n' +
+      '- summary: 2 o 3 líneas claras, sin repetir literal el answer.\n' +
+      '- highlights: 2 a 4 puntos concretos y útiles.\n' +
+      '- Si existe un nombre específico de plataforma o arquitectura (ej: MQB, FCA Small Wide, CMF, etc.), priorizalo.\n' +
+      '- Si la pregunta es sobre motor, priorizá familias o códigos de motor relevantes.\n' +
+      '- Si la pregunta es sobre “está basado en”, no respondas con relaciones genéricas; apuntá a la base técnica o decí que no está claro.\n\n' +
       '{\n' +
       '  "answer": "respuesta corta",\n' +
-      '  "summary": "resumen breve en 2 o 3 líneas",\n' +
+      '  "summary": "resumen breve",\n' +
       '  "highlights": ["dato 1", "dato 2", "dato 3"]\n' +
-      '}\n' +
-      'No inventes datos. Si no alcanza la fuente, decilo igual dentro de ese formato.';
+      '}';
 
     const response = await fetch(
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
@@ -280,22 +547,22 @@ app.post('/api/lookup', async (req, res) => {
         ? json.candidates[0].content.parts[0].text
         : '{}';
 
-let parsed;
-try {
-  const cleaned = text
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
-    .replace(/\s*```$/i, '')
-    .trim();
+    let parsed;
+    try {
+      const cleaned = text
+        .replace(/^```json\s*/i, '')
+        .replace(/^```\s*/i, '')
+        .replace(/\s*```$/i, '')
+        .trim();
 
-  parsed = JSON.parse(cleaned);
-} catch (_err) {
-  parsed = {
-    answer: 'No pude estructurar la respuesta',
-    summary: text,
-    highlights: []
-  };
-}
+      parsed = JSON.parse(cleaned);
+    } catch (_err) {
+      parsed = {
+        answer: 'No pude estructurar la respuesta',
+        summary: text,
+        highlights: []
+      };
+    }
 
     return res.json({
       answer: parsed.answer || 'Sin respuesta clara',
@@ -312,7 +579,6 @@ try {
 });
 
 async function fetchWiki(query) {
-  // 1) Buscar el título correcto
   const searchUrl =
     'https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=' +
     encodeURIComponent(query) +
@@ -327,7 +593,6 @@ async function fetchWiki(query) {
 
   const title = first.title;
 
-  // 2) Pedir extracto largo en texto plano
   const extractUrl =
     'https://en.wikipedia.org/w/api.php?action=query&prop=extracts&exintro=0&explaintext=1&titles=' +
     encodeURIComponent(title) +
@@ -339,10 +604,8 @@ async function fetchWiki(query) {
   const extractJson = await extractResponse.json();
   const pages = extractJson?.query?.pages || {};
   const page = Object.values(pages)[0];
-
   const extract = page?.extract || '';
 
-  // 3) Pedir infobox/HTML de la página para rascar datos útiles
   const parseUrl =
     'https://en.wikipedia.org/w/api.php?action=parse&page=' +
     encodeURIComponent(title) +
@@ -355,17 +618,14 @@ async function fetchWiki(query) {
     html = parseJson?.parse?.text || '';
   }
 
-  // 4) Rascar algunas filas útiles de la infobox
   const infoboxText = extractInfoboxText(html);
-
-  // 5) Limitar para no mandarle una biblia a Gemini
   const trimmedExtract = extract.slice(0, 6000);
-  const trimmedInfobox = infoboxText.slice(0, 2000);
+  const trimmedInfobox = infoboxText.slice(0, 2200);
 
   return [
-    `Título: ${title}`,
-    trimmedInfobox ? `Infobox:\n${trimmedInfobox}` : '',
-    trimmedExtract ? `Contenido:\n${trimmedExtract}` : ''
+    'Título: ' + title,
+    trimmedInfobox ? 'Infobox:\n' + trimmedInfobox : '',
+    trimmedExtract ? 'Contenido:\n' + trimmedExtract : ''
   ]
     .filter(Boolean)
     .join('\n\n');
@@ -394,7 +654,6 @@ function extractInfoboxText(html) {
 
   while ((match = rowRegex.exec(html)) !== null) {
     const rowHtml = match[1];
-
     const thMatch = rowHtml.match(/<th[^>]*>([\s\S]*?)<\/th>/i);
     const tdMatch = rowHtml.match(/<td[^>]*>([\s\S]*?)<\/td>/i);
 
@@ -406,12 +665,12 @@ function extractInfoboxText(html) {
     if (!rawLabel || !rawValue) continue;
 
     const normalized = rawLabel.toLowerCase();
-    const isWanted = wantedLabels.some(
-      (label) => normalized === label.toLowerCase()
-    );
+    const isWanted = wantedLabels.some(function(label) {
+      return normalized === label.toLowerCase();
+    });
 
     if (isWanted) {
-      rows.push(`${rawLabel}: ${rawValue}`);
+      rows.push(rawLabel + ': ' + rawValue);
     }
   }
 
