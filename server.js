@@ -280,16 +280,22 @@ app.post('/api/lookup', async (req, res) => {
         ? json.candidates[0].content.parts[0].text
         : '{}';
 
-    let parsed;
-    try {
-      parsed = JSON.parse(text);
-    } catch (_err) {
-      parsed = {
-        answer: 'No pude estructurar la respuesta',
-        summary: text,
-        highlights: []
-      };
-    }
+let parsed;
+try {
+  const cleaned = text
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+
+  parsed = JSON.parse(cleaned);
+} catch (_err) {
+  parsed = {
+    answer: 'No pude estructurar la respuesta',
+    summary: text,
+    highlights: []
+  };
+}
 
     return res.json({
       answer: parsed.answer || 'Sin respuesta clara',
