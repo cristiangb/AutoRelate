@@ -312,18 +312,126 @@ try {
 });
 
 async function fetchWiki(query) {
-  const url =
-    'https://en.wikipedia.org/api/rest_v1/page/summary/' +
-    encodeURIComponent(query);
+  // 1) Buscar el título correcto
+  const searchUrl =
+    'https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=' +
+    encodeURIComponent(query) +
+    '&utf8=1&format=json&origin=*';
 
-  const response = await fetch(url);
+  const searchResponse = await fetch(searchUrl);
+  if (!searchResponse.ok) return '';
 
-  if (!response.ok) {
-    return '';
+  const searchJson = await searchResponse.json();
+  const first = searchJson?.query?.search?.[0];
+  if (!first?.title) return '';
+
+  const title = first.title;
+
+  // 2) Pedir extracto largo en texto plano
+  const extractUrl =
+    'https://en.wikipedia.org/w/api.php?action=query&prop=extracts&exintro=0&explaintext=1&titles=' +
+    encodeURIComponent(title) +
+    '&format=json&origin=*';
+
+  const extractResponse = await fetch(extractUrl);
+  if (!extractResponse.ok) return '';
+
+  const extractJson = await extractResponse.json();
+  const pages = extractJson?.query?.pages || {};
+  const page = Object.values(pages)[0];
+
+  const extract = page?.extract || '';
+
+  // 3) Pedir infobox/HTML de la página para rascar datos útiles
+  const parseUrl =
+    'https://en.wikipedia.org/w/api.php?action=parse&page=' +
+    encodeURIComponent(title) +
+    '&prop=text&formatversion=2&format=json&origin=*';
+
+  const parseResponse = await fetch(parseUrl);
+  let html = '';
+  if (parseResponse.ok) {
+    const parseJson = await parseResponse.json();
+    html = parseJson?.parse?.text || '';
   }
 
-  const json = await response.json();
-  return json.extract || '';
+  // 4) Rascar algunas filas útiles de la infobox
+  const infoboxText = extractInfoboxText(html);
+
+  // 5) Limitar para no mandarle una biblia a Gemini
+  const trimmedExtract = extract.slice(0, 6000);
+  const trimmedInfobox = infoboxText.slice(0, 2000);
+
+  return [
+    `Título: ${title}`,
+    trimmedInfobox ? `Infobox:\n${trimmedInfobox}` : '',
+    trimmedExtract ? `Contenido:\n${trimmedExtract}` : ''
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+function extractInfoboxText(html) {
+  if (!html) return '';
+
+  const wantedLabels = [
+    'Engine',
+    'Engines',
+    'Powertrain',
+    'Transmission',
+    'Layout',
+    'Platform',
+    'Related',
+    'Body style',
+    'Production',
+    'Model code',
+    'Chassis'
+  ];
+
+  const rows = [];
+  const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+  let match;
+
+  while ((match = rowRegex.exec(html)) !== null) {
+    const rowHtml = match[1];
+
+    const thMatch = rowHtml.match(/<th[^>]*>([\s\S]*?)<\/th>/i);
+    const tdMatch = rowHtml.match(/<td[^>]*>([\s\S]*?)<\/td>/i);
+
+    if (!thMatch || !tdMatch) continue;
+
+    const rawLabel = stripHtml(thMatch[1]).trim();
+    const rawValue = stripHtml(tdMatch[1]).trim();
+
+    if (!rawLabel || !rawValue) continue;
+
+    const normalized = rawLabel.toLowerCase();
+    const isWanted = wantedLabels.some(
+      (label) => normalized === label.toLowerCase()
+    );
+
+    if (isWanted) {
+      rows.push(`${rawLabel}: ${rawValue}`);
+    }
+  }
+
+  return rows.join('\n');
+}
+
+function stripHtml(text) {
+  return text
+    .replace(/<sup[\s\S]*?<\/sup>/gi, '')
+    .replace(/<br\s*\/?>/gi, ', ')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<li[^>]*>/gi, '- ')
+    .replace(/<\/li>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 app.listen(PORT, () => {
