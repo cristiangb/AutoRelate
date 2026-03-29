@@ -62,7 +62,7 @@ app.get('/', (_req, res) => {
       <option value="engine">motor</option>
       <option value="highlights">highlights</option>
     </select>
-    <button id="btn" onclick="ask()">Consultar</button>
+    <button id="btn" type="button">Consultar</button>
   </div>
 
   <div class="card">
@@ -75,16 +75,19 @@ app.get('/', (_req, res) => {
   </div>
 
   <script>
+    const qEl = document.getElementById('q');
+    const rEl = document.getElementById('r');
+    const btn = document.getElementById('btn');
+    const answerEl = document.getElementById('answer');
+    const summaryEl = document.getElementById('summary');
+    const chipsEl = document.getElementById('chips');
+    const sourceEl = document.getElementById('source');
+    const errorEl = document.getElementById('error');
+    const titleEl = document.getElementById('title');
+
     async function ask() {
-      const query = document.getElementById('q').value.trim();
-      const relation = document.getElementById('r').value;
-      const btn = document.getElementById('btn');
-      const answerEl = document.getElementById('answer');
-      const summaryEl = document.getElementById('summary');
-      const chipsEl = document.getElementById('chips');
-      const sourceEl = document.getElementById('source');
-      const errorEl = document.getElementById('error');
-      const titleEl = document.getElementById('title');
+      const query = qEl.value.trim();
+      const relation = rEl.value;
 
       errorEl.textContent = '';
       chipsEl.innerHTML = '';
@@ -104,14 +107,15 @@ app.get('/', (_req, res) => {
       try {
         const res = await fetch('/api/lookup', {
           method: 'POST',
-          headers: {'Content-Type':'application/json'},
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ query, relation })
         });
 
         const data = await res.json();
 
         if (!res.ok) {
-          throw new Error(data.error + (data.detail ? '\n\n' + JSON.stringify(data.detail, null, 2) : ''));
+          const detailText = data.detail ? '\n\n' + JSON.stringify(data.detail, null, 2) : '';
+          throw new Error((data.error || 'Error desconocido.') + detailText);
         }
 
         titleEl.textContent = query + ' · ' + relation;
@@ -119,7 +123,7 @@ app.get('/', (_req, res) => {
         summaryEl.textContent = data.summary || '';
 
         chipsEl.innerHTML = '';
-        (data.highlights || []).forEach(item => {
+        (data.highlights || []).forEach((item) => {
           const chip = document.createElement('div');
           chip.className = 'chip';
           chip.textContent = item;
@@ -129,7 +133,6 @@ app.get('/', (_req, res) => {
         sourceEl.innerHTML = data.source
           ? 'Fuente: <a href="' + data.source + '" target="_blank" rel="noopener noreferrer">' + data.source + '</a>'
           : '';
-
       } catch (err) {
         answerEl.textContent = 'No se pudo resolver';
         summaryEl.textContent = '';
@@ -139,6 +142,13 @@ app.get('/', (_req, res) => {
         btn.textContent = 'Consultar';
       }
     }
+
+    btn.addEventListener('click', ask);
+    qEl.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        ask();
+      }
+    });
   </script>
 </body>
 </html>`);
